@@ -1,18 +1,24 @@
 [package]
-name = "backend"
+name = "auto_doc_backend"
 version = "0.1.0"
 edition = "2021"
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [dependencies]
-[dependencies]
-axum = { version = "0.6", features = ["tokio-tower"] }
-tokio = { version = "1", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-jsonwebtoken = "7.2"
-bcrypt = "0.12"
-sqlx = { version = "0.5", features = ["postgres", "runtime-tokio-native-tls"] }
-dotenv = "0.15"
-tower = "0.4"
-uuid = { version = "1.0", features = ["v4"] }
-tokio-postgres = "0.7"
+axum = "0.6"                     # Framework web asynchrone, simple et performant
+tokio = { version = "1", features = ["full"] }  # Runtime asynchrone pour Rust, utilisé par Actix et d'autres bibliothèques
+serde = { version = "1.0", features = ["derive"] }  # Sérialisation et désérialisation des données JSON
+serde_json = "1.0"                  # Manipulation des données JSON
+uuid = { version = "1.0", features = ["v4"] }  # Pour générer des UUID uniques
+bcrypt = "0.12"                     # Pour le hashage des mots de passe
+jsonwebtoken = "8.1"                # Gestion des JWT (JSON Web Tokens)
+diesel = { version = "1.4", features = ["postgres", "chrono"] }  # ORM pour la gestion de la DB PostgreSQL
+dotenv = "0.15"                     # Pour charger les variables d'environnement à partir d'un fichier .env
+aws-sdk-s3 = "0.0.25-alpha"         # SDK AWS pour interagir avec S3 (sans OpenSSL)
+sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "postgres", "chrono"] }  # Alternative pour la gestion de la base de données sans OpenSSL
+tower = "0.4"                       # Middleware pour la gestion des requêtes HTTP (utile avec Actix)
+log = "0.4"                         # Pour les logs
+env_logger = "0.9"                  # Pour afficher les logs dans la console
+chrono = "0.4"                      # Manipulation des dates et heures (utile pour la gestion des timestamps)
+
