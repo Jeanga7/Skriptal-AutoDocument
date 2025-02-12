@@ -28,7 +28,7 @@ pub struct LoginResponse {
     pub token: String,
 }
 
-pub fn routes(pool: PgPool) -> Router {
+pub fn routes(pool: PgPool) -> Router<PgPool> {
     Router::new()
         .route("/register", post(register_user))
         .route("/login", post(login_user))
