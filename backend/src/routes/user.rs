@@ -1,74 +1,83 @@
-use crate::auth::jwt::generate_jwt;
-use crate::auth::password::{hash_password, verify_password};
-use crate::auth::User;
+use crate::auth::{jwt::generate_jwt, middleware::verify_jwt, password, User};
+use crate::utils::errors::error_response;
+use axum::http::StatusCode;
+use axum::middleware;
+use axum::response::IntoResponse;
+use axum::routing::get;
 use axum::{extract::State, routing::post, Json, Router};
-use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
-#[derive(Deserialize)]
-pub struct RegisterRequest {
-    pub username: String,
-    pub email: String,
-    pub password: String,
-}
-
-#[derive(Serialize)]
-pub struct RegisterResponse {
-    pub message: String,
-}
-
-#[derive(Deserialize)]
-pub struct LoginRequest {
-    pub email: String,
-    pub password: String,
-}
-
-#[derive(Serialize)]
-pub struct LoginResponse {
-    pub token: String,
-}
-
-pub fn routes(pool: PgPool) -> Router<PgPool> {
+use super::{LoginRequest, LoginResponse, RegisterRequest, RegisterResponse};
+/// Creates and returns a router with routes for user registration and login.
+pub fn routes(db: PgPool) -> Router<PgPool> {
     Router::new()
         .route("/register", post(register_user))
         .route("/login", post(login_user))
-        .with_state(pool)
+        .route(
+            "/protected",
+            get(protected_route).layer(middleware::from_fn_with_state(db.clone(), verify_jwt)),
+        )
+        .with_state(db)
 }
 
-pub async fn register_user(
-    State(pool): State<PgPool>,
+/// Registers a new user.
+async fn register_user(
+    State(pool): State<sqlx::PgPool>,
     Json(payload): Json<RegisterRequest>,
-) -> Json<RegisterResponse> {
-    let password_hash = hash_password(&payload.password);
+) -> Result<impl IntoResponse, impl IntoResponse> {
+    if payload.username.trim().is_empty() || payload.password.trim().is_empty() {
+        return Err(error_response(StatusCode::BAD_REQUEST, "Username or password cannot be empty"));
+    }
 
-    sqlx::query!(
+    let password_hash = password::hash_password(&payload.password);
+
+    let result = sqlx::query!(
         "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)",
         payload.username,
         payload.email,
         password_hash
     )
     .execute(&pool)
-    .await
-    .expect("Failed to insert user");
+    .await;
 
-    Json(RegisterResponse {
-        message: "User created successfully".to_string(),
-    })
+    match result {
+        Ok(_) => Ok((
+            StatusCode::CREATED,
+            Json(RegisterResponse {
+                message: "User created successfully".to_string(),
+            }),
+        )),
+        Err(e) => {
+            eprintln!("Failed to execute query: {:?}", e);
+            Err(error_response(StatusCode::INTERNAL_SERVER_ERROR, "Failed to create user"))
+        }
+    }
 }
 
+/// Asynchronously logs in a user.
+/// The login response JSON containing the generated token.
 pub async fn login_user(
-    State(pool): State<PgPool>,
+    State(db): State<PgPool>,
     Json(payload): Json<LoginRequest>,
-) -> Json<LoginResponse> {
-    let user = sqlx::query_as!(User, "SELECT * FROM users WHERE email = $1", payload.email)
-        .fetch_one(&pool)
-        .await
-        .expect("User not found");
+) -> Result<Json<LoginResponse>, impl IntoResponse> {
+    let user = sqlx::query_as!(
+        User,
+        "SELECT * FROM users WHERE email = $1",
+        payload.email
+    )
+    .fetch_one(&db)
+    .await
+    .map_err(|_| error_response(StatusCode::UNAUTHORIZED, "Invalid email or password"))?;
 
-    if !verify_password(&payload.password, &user.password_hash) {
-        panic!("Invalid credentials");
+    if !password::verify_password(&payload.password, &user.password_hash) {
+        return Err(error_response(StatusCode::UNAUTHORIZED, "Invalid email or password"));
     }
 
     let token = generate_jwt(&user.id.to_string());
-    Json(LoginResponse { token })
+    Ok(Json(LoginResponse { token }))
+}
+
+
+async fn protected_route() -> impl IntoResponse {
+    "You have access to this protected route!".into_response()
 }

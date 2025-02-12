@@ -1,8 +1,8 @@
+use sqlx::{types::Uuid, FromRow};
+
 pub mod jwt;
 pub mod password;
-
-use sqlx::FromRow;
-use sqlx::types::Uuid;
+pub mod middleware;
 
 #[derive(Debug, FromRow)]
 pub struct User {

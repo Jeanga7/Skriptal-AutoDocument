@@ -1,3 +1,5 @@
+use axum::{http::StatusCode, response::IntoResponse, Json};
+use serde_json::json;
 // use thiserror::Error;
 
 
@@ -11,3 +13,8 @@ pub enum LoginError {
     DatabaseError(#[from] sqlx::Error),
 }
  */
+
+
+pub fn error_response(status: StatusCode, message: &str) -> impl IntoResponse {
+    (status, Json(json!({ "error": message })))
+}
