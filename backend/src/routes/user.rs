@@ -1,23 +1,41 @@
-use axum::{Json, extract::State, routing::post, Router};
-use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use crate::auth::jwt::generate_jwt;
 use crate::auth::password::{hash_password, verify_password};
 use crate::auth::User;
+use axum::{extract::State, routing::post, Json, Router};
+use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 
 #[derive(Deserialize)]
-struct RegisterRequest {
-    username: String,
-    email: String,
-    password: String,
+pub struct RegisterRequest {
+    pub username: String,
+    pub email: String,
+    pub password: String,
 }
 
 #[derive(Serialize)]
-struct RegisterResponse {
-    message: String,
+pub struct RegisterResponse {
+    pub message: String,
 }
 
-async fn register_user(
+#[derive(Deserialize)]
+pub struct LoginRequest {
+    pub email: String,
+    pub password: String,
+}
+
+#[derive(Serialize)]
+pub struct LoginResponse {
+    pub token: String,
+}
+
+pub fn routes(pool: PgPool) -> Router {
+    Router::new()
+        .route("/register", post(register_user))
+        .route("/login", post(login_user))
+        .with_state(pool)
+}
+
+pub async fn register_user(
     State(pool): State<PgPool>,
     Json(payload): Json<RegisterRequest>,
 ) -> Json<RegisterResponse> {
@@ -38,33 +56,14 @@ async fn register_user(
     })
 }
 
-pub fn routes(pool: PgPool) -> Router {
-    Router::new().route("/register", post(register_user)).with_state(pool)
-}
-
-#[derive(Deserialize)]
-struct LoginRequest {
-    email: String,
-    password: String,
-}
-
-#[derive(Serialize)]
-struct LoginResponse {
-    token: String,
-}
-
-async fn login_user(
+pub async fn login_user(
     State(pool): State<PgPool>,
     Json(payload): Json<LoginRequest>,
 ) -> Json<LoginResponse> {
-    let user = sqlx::query_as!(
-        User,
-        "SELECT * FROM users WHERE email = $1",
-        payload.email
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("User not found");
+    let user = sqlx::query_as!(User, "SELECT * FROM users WHERE email = $1", payload.email)
+        .fetch_one(&pool)
+        .await
+        .expect("User not found");
 
     if !verify_password(&payload.password, &user.password_hash) {
         panic!("Invalid credentials");

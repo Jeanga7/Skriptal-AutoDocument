@@ -4,7 +4,7 @@ AutoDocument est une plateforme innovante qui automatise la création de documen
 
 ## Who to run?
 
-📌 1 Lancer les conteneurs
+📌 1 Lancer les conteneurs (le postgre est lancé avec docker)
 
 Exécute :
 

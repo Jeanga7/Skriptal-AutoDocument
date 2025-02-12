@@ -2,10 +2,9 @@ pub mod jwt;
 pub mod password;
 
 use sqlx::FromRow;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+use sqlx::types::Uuid;
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, FromRow)]
 pub struct User {
     pub id: Uuid,
     pub username: String,

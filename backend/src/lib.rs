@@ -4,3 +4,4 @@ pub mod database;
 pub mod routes;
 pub mod services;
 pub mod storage;
+pub mod utils;

@@ -1,12 +1,10 @@
 pub mod schema;
 
-use std::env;
-use sqlx::{Pool, Postgres};
+use sqlx::PgPool;
 
-pub async fn connect() -> Pool<Postgres> {
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    Pool::<Postgres>::connect(&database_url)
+pub async fn connect() -> PgPool {
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    PgPool::connect(&database_url)
         .await
         .expect("Failed to connect to the database")
 }
-
