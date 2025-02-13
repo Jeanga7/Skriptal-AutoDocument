@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 pub mod generate;
-pub mod auth;
+pub mod user;
 
 #[derive(Deserialize)]
 pub struct RegisterRequest {

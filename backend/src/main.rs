@@ -12,7 +12,7 @@ async fn main() {
     println!("✅ Database connected!");
 
     // Créer les routes
-    let user_routes = routes::auth::routes(db.clone());
+    let user_routes = routes::user::routes(db.clone());
 
     // Définir les routes pour l'application
     let app = Router::new()
