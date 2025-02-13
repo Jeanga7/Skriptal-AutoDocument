@@ -6,6 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use jsonwebtoken::{decode, DecodingKey, Validation};
+use sqlx::PgPool;
 use std::env;
 
 /// Alias pour les erreurs HTTP
@@ -21,11 +22,17 @@ impl IntoResponse for UnauthorizedMessage {
 
 /// Middleware pour vérifier l'authentification avec JWT
 pub async fn verify_jwt<B>(
-    State(_pool): State<sqlx::PgPool>,
+    State(pool): State<sqlx::PgPool>,
     mut req: Request<B>,
     next: Next<B>,
 ) -> HttpResult {
     let token = extract_token(&req)?;
+
+    // Vérifier si le token est révoqué
+    if is_token_revoked(&pool, &token).await? {
+        return Err((StatusCode::UNAUTHORIZED, "Token has been revoked").into_response());
+    }
+
     let user_id = validate_jwt(&token)?;
 
     // Attacher l'ID utilisateur au contexte de la requête
@@ -61,4 +68,17 @@ fn validate_jwt(token: &str) -> Result<String, Response> {
     )
     .map(|token_data| token_data.claims.sub) // Récupère l'ID utilisateur
     .map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid token").into_response())
+}
+
+/// Vérifie si le token est révoqué dans la base de données
+async fn is_token_revoked(pool: &PgPool, token: &str) -> Result<bool, Response> {
+    let result = sqlx::query!(
+        "SELECT 1 AS token_exists FROM revoked_tokens WHERE token = $1",
+        token
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response())?;
+
+    Ok(result.is_some())
 }

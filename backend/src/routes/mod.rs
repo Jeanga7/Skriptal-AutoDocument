@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 pub mod generate;
-pub mod user;
-
+pub mod auth;
 
 #[derive(Deserialize)]
 pub struct RegisterRequest {
@@ -27,3 +26,7 @@ pub struct LoginResponse {
     pub token: String,
 }
 
+#[derive(Deserialize)]
+pub struct LogoutRequest {
+    pub token: String,
+}

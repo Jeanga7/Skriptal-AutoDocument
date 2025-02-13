@@ -21,3 +21,9 @@ Lancement du conteneur
 
 Pour exécuter psql via Docker :
 `docker exec -it my-postgres psql -U postgres`
+
+---
+
+Générer un nouveau fichier de migration
+
+`sqlx migrate add [nom]`
