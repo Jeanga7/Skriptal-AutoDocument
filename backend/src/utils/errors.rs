@@ -1,7 +1,9 @@
-use axum::{http::StatusCode, response::IntoResponse, Json};
-use serde_json::json;
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 // use thiserror::Error;
-
 
 /* #[derive(Error, Debug)]
 pub enum LoginError {
@@ -14,7 +16,6 @@ pub enum LoginError {
 }
  */
 
-
-pub fn error_response(status: StatusCode, message: &str) -> impl IntoResponse {
-    (status, Json(json!({ "error": message })))
+pub fn error_response(status: StatusCode, message: &str) -> Response {
+    (status, Json(serde_json::json!({ "error": message }))).into_response()
 }

@@ -1,13 +1,18 @@
 use crate::auth::{jwt::generate_jwt, middleware::verify_jwt, password, User};
 use crate::utils::errors::error_response;
+use axum::extract::Path;
 use axum::http::StatusCode;
-use axum::middleware;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{extract::State, routing::post, Json, Router};
+use axum::{middleware, Extension};
+use sqlx::types::Uuid;
 use sqlx::PgPool;
 
-use super::{LoginRequest, LoginResponse, LogoutRequest, RegisterRequest, RegisterResponse};
+use super::{
+    LoginRequest, LoginResponse, LogoutRequest, RegisterRequest, RegisterResponse,
+    UpdateProfileRequest, UserProfile,
+};
 /// Creates and returns a router with routes for user registration and login.
 pub fn routes(db: PgPool) -> Router<PgPool> {
     Router::new()
@@ -15,8 +20,16 @@ pub fn routes(db: PgPool) -> Router<PgPool> {
         .route("/login", post(login_user))
         .route("/logout", post(logout))
         .route(
-            "/protected",
-            get(protected_route).layer(middleware::from_fn_with_state(db.clone(), verify_jwt)),
+            "/user/profile/:id",
+            get(get_profile).layer(middleware::from_fn_with_state(db.clone(), verify_jwt)),
+        )
+        .route(
+            "/user/update",
+            post(update_profile).layer(middleware::from_fn_with_state(db.clone(), verify_jwt)),
+        )
+        .route(
+            "/user/delete",
+            post(delete_account).layer(middleware::from_fn_with_state(db.clone(), verify_jwt)),
         )
         .with_state(db)
 }
@@ -100,6 +113,64 @@ pub async fn logout(
     }
 }
 
-async fn protected_route() -> impl IntoResponse {
-    "You have access to this protected route!".into_response()
+pub async fn get_profile(
+    State(pool): State<PgPool>,
+    Path(user_id): Path<Uuid>,
+) -> Result<Json<UserProfile>, Response> {
+    let user = sqlx::query_as!(
+        UserProfile,
+        "SELECT id, email, username, first_name, last_name, created_at FROM users WHERE id = $1",
+        user_id
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(|_| error_response(StatusCode::NOT_FOUND, "User not found"))?;
+
+    Ok(Json(user))
+}
+
+pub async fn update_profile(
+    State(pool): State<PgPool>,
+    Extension(user_id): Extension<Uuid>,
+    Json(payload): Json<UpdateProfileRequest>,
+) -> Response {
+    let result = sqlx::query!(
+        "UPDATE users SET 
+            username = COALESCE($1, username),
+            first_name = COALESCE($2, first_name),
+            last_name = COALESCE($3, last_name),
+            updated_at = NOW()
+        WHERE id = $4",
+        payload.username,
+        payload.first_name,
+        payload.last_name,
+        user_id
+    )
+    .execute(&pool)
+    .await;
+
+    match result {
+        Ok(_) => (StatusCode::OK, "Profile updated successfully").into_response(),
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to update profile",
+        ),
+    }
+}
+
+pub async fn delete_account(
+    State(pool): State<PgPool>,
+    Extension(user_id): Extension<Uuid>,
+) -> Response {
+    let result = sqlx::query!("DELETE FROM users WHERE id = $1", user_id)
+        .execute(&pool)
+        .await;
+
+    match result {
+        Ok(_) => (StatusCode::OK, "Account deleted successfully").into_response(),
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to delete account",
+        ),
+    }
 }
