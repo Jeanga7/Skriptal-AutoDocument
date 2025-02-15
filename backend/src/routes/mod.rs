@@ -17,6 +17,14 @@ pub struct RegisterResponse {
     pub message: String,
 }
 
+impl RegisterResponse {
+    fn success() -> Self {
+        Self {
+            message: "User created successfully".into(),
+        }
+    }
+}
+
 #[derive(Deserialize)]
 pub struct LoginRequest {
     pub email: String,
@@ -50,3 +58,4 @@ pub struct UpdateProfileRequest {
     pub last_name: Option<String>,
     pub password: Option<String>,
 }
+
