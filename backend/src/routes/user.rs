@@ -17,12 +17,17 @@ use super::{
     UpdateProfileRequest, UserProfile,
 };
 
+// ===========================================================================
+//                                UserRepository
+// ===========================================================================
+/// Repository for managing user data in the database.
 #[derive(Clone)]
 struct UserRepository {
     pool: PgPool,
 }
 
 impl UserRepository {
+    // Function to create a new user in the database
     async fn create(&self, payload: RegisterRequest) -> Result<(), AppError> {
         let password_hash = password::hash_password(&payload.password);
 
@@ -47,6 +52,8 @@ impl UserRepository {
         Ok(())
     }
 
+    /// Asynchronously finds a user by their identity (email or username) and
+    /// returns a Result containing the found User or an AppError if the credentials are invalid.
     async fn find_by_identity(&self, identity: &str) -> Result<User, AppError> {
         sqlx::query_as!(
             User,
@@ -58,6 +65,7 @@ impl UserRepository {
         .map_err(|_| AppError::unauthorized("Invalid credentials"))
     }
 
+    /// Retrieves the profile of a user with the specified `user_id` from the database.
     async fn get_profile(&self, user_id: SqlxUuid) -> Result<UserProfile, AppError> {
         sqlx::query_as!(
             UserProfile,
@@ -70,6 +78,7 @@ impl UserRepository {
         .map_err(|_| AppError::not_found("User not found"))
     }
 
+    /// Updates the user profile with the given `user_id` and `payload`.
     async fn update_profile(
         &self,
         user_id: SqlxUuid,
@@ -101,6 +110,7 @@ impl UserRepository {
         Ok(())
     }
 
+    /// Deletes a user with the specified `user_id` from the `users` table.
     async fn delete(&self, user_id: SqlxUuid) -> Result<(), AppError> {
         sqlx::query!("DELETE FROM users WHERE id = $1", user_id)
             .execute(&self.pool)
@@ -111,12 +121,18 @@ impl UserRepository {
     }
 }
 
-// Structure pour gérer les tokens révoqués
+
+// ===========================================================================
+//                                TokenRepository
+// ===========================================================================
+
 #[derive(Clone)]
 struct TokenRepository {
     pool: PgPool,
 }
 
+/// Asynchronously revokes a token by inserting it into the `revoked_tokens` table.
+///  If the token already exists in the table, it will not be inserted again.
 impl TokenRepository {
     async fn revoke(&self, token: &str) -> Result<(), AppError> {
         sqlx::query!(
@@ -132,11 +148,15 @@ impl TokenRepository {
     }
 }
 
-// Configuration des routes
+// ===========================================================================
+//                                ROUTES
+// ===========================================================================
+/// Creates and returns the router for handling routes in the app.
 pub fn routes(db: PgPool) -> Router<PgPool> {
     let user_repo = UserRepository { pool: db.clone() };
     let token_repo = TokenRepository { pool: db.clone() };
 
+    // protected routes, need JWT token
     let user_routes = Router::new()
         .route("/profile", get(get_profile))
         .route("/update", post(update_profile))
@@ -153,6 +173,11 @@ pub fn routes(db: PgPool) -> Router<PgPool> {
         .layer(Extension(token_repo))
 }
 
+// ===========================================================================
+//                                CRUD OPERATIONS
+// ===========================================================================
+
+/// Registers a user with the provided username, password, and email (optional first and last name ).
 async fn register_user(
     Extension(repo): Extension<UserRepository>,
     Json(payload): Json<RegisterRequest>,
@@ -160,7 +185,7 @@ async fn register_user(
     if payload.username.trim().is_empty() || payload.password.trim().is_empty() {
         return Err(AppError::bad_request("Username/password cannot be empty"));
     }
-    
+
     if !is_valid_email(&payload.email) {
         return Err(AppError::bad_request("Invalid email format"));
     }
@@ -169,6 +194,7 @@ async fn register_user(
     Ok((StatusCode::CREATED, Json(RegisterResponse::success())))
 }
 
+/// Asynchronously logs in a user.
 async fn login_user(
     Extension(repo): Extension<UserRepository>,
     Json(payload): Json<LoginRequest>,
@@ -183,6 +209,7 @@ async fn login_user(
     Ok(Json(LoginResponse { token }))
 }
 
+/// Logout function that revokes the provided token from the TokenRepository.
 async fn logout(
     Extension(repo): Extension<TokenRepository>,
     Json(payload): Json<LogoutRequest>,
@@ -191,6 +218,7 @@ async fn logout(
     Ok((StatusCode::OK, "Logged out successfully"))
 }
 
+/// Asynchronously retrieves the profile of a user.
 async fn get_profile(
     Extension(repo): Extension<UserRepository>,
     Extension(user_id): Extension<SqlxUuid>,
@@ -199,6 +227,7 @@ async fn get_profile(
     Ok(Json(profile))
 }
 
+/// Updates the user's profile.
 async fn update_profile(
     Extension(repo): Extension<UserRepository>,
     Extension(user_id): Extension<SqlxUuid>,
@@ -208,6 +237,7 @@ async fn update_profile(
     Ok((StatusCode::OK, "Profile updated"))
 }
 
+/// Deletes an account.
 async fn delete_account(
     Extension(repo): Extension<UserRepository>,
     Extension(user_id): Extension<SqlxUuid>,
