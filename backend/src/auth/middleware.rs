@@ -6,6 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use jsonwebtoken::{decode, DecodingKey, Validation};
+use sqlx::types::Uuid as SqlxUuid;
 use sqlx::PgPool;
 use std::env;
 
@@ -33,7 +34,10 @@ pub async fn verify_jwt<B>(
         return Err((StatusCode::UNAUTHORIZED, "Token has been revoked").into_response());
     }
 
-    let user_id = validate_jwt(&token)?;
+    let sub = validate_jwt(&token)?;
+    let user_id = SqlxUuid::parse_str(&sub)
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid user ID in token").into_response())?;
+
 
     // Attacher l'ID utilisateur au contexte de la requête
     req.extensions_mut().insert(user_id);

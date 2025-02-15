@@ -1,6 +1,5 @@
 use bcrypt::{hash, verify, DEFAULT_COST};
 /// Hashes the given password using the bcrypt algorithm with the default cost.
-/// This function will panic if the password hashing fails.
 pub fn hash_password(password: &str) -> String {
     hash(password, DEFAULT_COST).expect("Failed to hash password")
 }

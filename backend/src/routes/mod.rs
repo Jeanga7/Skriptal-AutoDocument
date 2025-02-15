@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use sqlx::{types::Uuid, FromRow};
 
 pub mod generate;
 pub mod user;
@@ -9,6 +8,8 @@ pub struct RegisterRequest {
     pub username: String,
     pub email: String,
     pub password: String,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -32,9 +33,9 @@ pub struct LogoutRequest {
     pub token: String,
 }
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UserProfile {
-    pub id: Uuid,
+    // pub id: Uuid,
     pub email: String,
     pub username: String,
     pub first_name: Option<String>,
@@ -47,5 +48,5 @@ pub struct UpdateProfileRequest {
     pub username: Option<String>,
     pub first_name: Option<String>,
     pub last_name: Option<String>,
+    pub password: Option<String>,
 }
-
