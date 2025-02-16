@@ -12,6 +12,7 @@ pub struct User {
     pub first_name: Option<String>, 
     pub last_name: Option<String>,  
     pub password_hash: String,
+    pub role: String,
     pub created_at: Option<chrono::NaiveDateTime>,
     pub updated_at: Option<chrono::NaiveDateTime>,  
 }

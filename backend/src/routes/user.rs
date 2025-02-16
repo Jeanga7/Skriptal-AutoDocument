@@ -1,14 +1,10 @@
 use axum::{
-    http::StatusCode,
-    middleware,
-    response::IntoResponse,
-    routing::{get, post},
-    Extension, Json, Router,
+    extract::Path, http::StatusCode, middleware, response::IntoResponse, routing::{delete, get, post}, Extension, Json, Router
 };
 use sqlx::{types::Uuid as SqlxUuid, PgPool};
 
 use crate::{
-    auth::{jwt::generate_jwt, middleware::verify_jwt, password, User},
+    auth::{jwt::generate_jwt, middleware::{verify_admin, verify_jwt}, password, User},
     utils::{errors::AppError, is_valid_email},
 };
 
@@ -30,15 +26,17 @@ impl UserRepository {
     // Function to create a new user in the database
     async fn create(&self, payload: RegisterRequest) -> Result<(), AppError> {
         let password_hash = password::hash_password(&payload.password);
+        let role = "user";
 
         sqlx::query!(
-            "INSERT INTO users (username, email, password_hash, first_name, last_name) 
-             VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO users (username, email, password_hash, first_name, last_name, role) 
+             VALUES ($1, $2, $3, $4, $5, $6)",
             payload.username,
             payload.email,
             password_hash,
             payload.first_name,
-            payload.last_name
+            payload.last_name,
+            role
         )
         .execute(&self.pool)
         .await
@@ -119,8 +117,27 @@ impl UserRepository {
 
         Ok(())
     }
-}
 
+    // acces admin
+    pub async fn list_users(&self) -> Result<Vec<UserProfile>, AppError> {
+        let users = sqlx::query_as!(
+            UserProfile,
+            "SELECT email, username, first_name, last_name, created_at FROM users"
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|_| AppError::not_found("No users found"))?;
+        Ok(users)
+    }
+
+    pub async fn delete_user_by_admin(&self, user_id: SqlxUuid) -> Result<(), AppError> {
+        sqlx::query!("DELETE FROM users WHERE id = $1", user_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        Ok(())
+    }
+}
 
 // ===========================================================================
 //                                TokenRepository
@@ -163,11 +180,17 @@ pub fn routes(db: PgPool) -> Router<PgPool> {
         .route("/delete", post(delete_account))
         .layer(middleware::from_fn_with_state(db.clone(), verify_jwt));
 
+    let admin_routes = Router::new()
+        .route("/users", get(list_users))
+        .route("/user/:id/delete", delete(delete_user_by_admin))
+        .layer(middleware::from_fn_with_state(db.clone(), verify_admin));
+
     Router::new()
         .route("/register", post(register_user))
         .route("/login", post(login_user))
         .route("/logout", post(logout))
         .nest("/user", user_routes)
+        .nest("/admin", admin_routes)
         .with_state(db)
         .layer(Extension(user_repo))
         .layer(Extension(token_repo))
@@ -244,4 +267,19 @@ async fn delete_account(
 ) -> Result<impl IntoResponse, AppError> {
     repo.delete(user_id).await?;
     Ok((StatusCode::OK, "Account deleted"))
+}
+
+async fn list_users(
+    Extension(repo): Extension<UserRepository>,
+) -> Result<Json<Vec<UserProfile>>, AppError> {
+    let users = repo.list_users().await?;
+    Ok(Json(users))
+}
+
+async fn delete_user_by_admin(
+    Path(user_id): Path<SqlxUuid>,
+    Extension(repo): Extension<UserRepository>,
+) -> Result<impl IntoResponse, AppError> {
+    repo.delete_user_by_admin(user_id).await?;
+    Ok((StatusCode::OK, "User deleted by admin"))
 }

@@ -1,4 +1,4 @@
-use crate::auth::jwt::Claims;
+use crate::{auth::jwt::Claims, utils::errors::AppError};
 use axum::{
     extract::State,
     http::{Request, StatusCode},
@@ -86,3 +86,26 @@ async fn is_token_revoked(pool: &PgPool, token: &str) -> Result<bool, Response> 
 
     Ok(result.is_some())
 }
+
+pub async fn verify_admin<B>(
+    State(pool): State<PgPool>,
+    user_id: SqlxUuid, 
+    request: axum::http::Request<B>,
+    next: Next<B>,
+) -> Result<Response, AppError> {
+    let role = sqlx::query!(
+        "SELECT role FROM users WHERE id = $1",
+        user_id
+    )
+    .fetch_one(&pool)
+    .await
+    .map(|record| record.role)
+    .map_err(|e| AppError::internal_error(&format!("Database error: {}", e)))?;
+
+    if role != "admin" {
+        return Err(AppError::unauthorized("Access denied: Admins only"));
+    }
+
+    Ok(next.run(request).await)
+}
+
